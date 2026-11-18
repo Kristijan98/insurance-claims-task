@@ -1,38 +1,45 @@
-﻿namespace Claims.Auditing
+using System.Threading.Channels;
+
+namespace Claims.Auditing
 {
-    public class Auditer
-    {
-        private readonly AuditContext _auditContext;
+	/// <summary>
+	/// Records audit entries without blocking the caller.
+	/// Entries are queued in memory and saved to the database by <see cref="AuditBackgroundService"/>.
+	/// </summary>
+	public class Auditer
+	{
+		private readonly Channel<object> _queue = Channel.CreateUnbounded<object>(
+			new UnboundedChannelOptions { SingleReader = true });
 
-        public Auditer(AuditContext auditContext)
-        {
-            _auditContext = auditContext;
-        }
+		/// <summary>
+		/// Queued audit entries (<see cref="ClaimAudit"/> or <see cref="CoverAudit"/>) waiting to be saved.
+		/// </summary>
+		public ChannelReader<object> Reader => _queue.Reader;
 
-        public void AuditClaim(string id, string httpRequestType)
-        {
-            var claimAudit = new ClaimAudit()
-            {
-                Created = DateTime.Now,
-                HttpRequestType = httpRequestType,
-                ClaimId = id
-            };
+		/// <summary>
+		/// Queues an audit entry for an operation on a claim.
+		/// </summary>
+		public void AuditClaim(string id, string httpRequestType)
+		{
+			_queue.Writer.TryWrite(new ClaimAudit
+			{
+				Created = DateTime.Now,
+				HttpRequestType = httpRequestType,
+				ClaimId = id
+			});
+		}
 
-            _auditContext.Add(claimAudit);
-            _auditContext.SaveChanges();
-        }
-        
-        public void AuditCover(string id, string httpRequestType)
-        {
-            var coverAudit = new CoverAudit()
-            {
-                Created = DateTime.Now,
-                HttpRequestType = httpRequestType,
-                CoverId = id
-            };
-
-            _auditContext.Add(coverAudit);
-            _auditContext.SaveChanges();
-        }
-    }
+		/// <summary>
+		/// Queues an audit entry for an operation on a cover.
+		/// </summary>
+		public void AuditCover(string id, string httpRequestType)
+		{
+			_queue.Writer.TryWrite(new CoverAudit
+			{
+				Created = DateTime.Now,
+				HttpRequestType = httpRequestType,
+				CoverId = id
+			});
+		}
+	}
 }

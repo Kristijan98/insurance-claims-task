@@ -1,5 +1,7 @@
 using Claims.Auditing;
-using Claims.Controllers;
+using Claims.Data;
+using Claims.Repositories;
+using Claims.Services;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using System.Runtime.InteropServices;
@@ -30,7 +32,9 @@ builder.Services
     });
 
 builder.Services.AddDbContext<AuditContext>(options =>
-    options.UseSqlServer(sqlContainer.GetConnectionString()));
+    options
+        .UseSqlServer(sqlContainer.GetConnectionString())
+        .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
 builder.Services.AddDbContext<ClaimsContext>(options =>
 {
@@ -39,7 +43,14 @@ builder.Services.AddDbContext<ClaimsContext>(options =>
     options.UseMongoDB(database.Client, database.DatabaseNamespace.DatabaseName);
 });
 
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddSingleton<Auditer>();
+builder.Services.AddHostedService<AuditBackgroundService>();
+builder.Services.AddScoped<ClaimsRepository>();
+builder.Services.AddScoped<CoversRepository>();
+builder.Services.AddScoped<ClaimsService>();
+builder.Services.AddScoped<CoversService>();
+
+// Learn more
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
